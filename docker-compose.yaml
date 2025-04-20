@@ -12,5 +12,6 @@ services:
       context: .
       dockerfile: Dockerfile.api
     container_name: wpp_bot_api
+    restart: always
     ports:
       - '5000:5000'

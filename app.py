@@ -1,12 +1,24 @@
 from flask import Flask, request, jsonify
 
+from services.waha import Waha
+
 app = Flask(__name__)
 
 @app.route('/chatbot/webhook/', methods=['POST'])
 def webhook():
     data = request.json
     
-    print(f'Evento Recebidp: {data}')
+    waha = Waha()
+
+    chat_id = data['payload']['from']
+    
+    print(f"Esse numero mandou mensagem: {chat_id}")
+
+    if "@c" in chat_id:
+        waha.send_message(
+            chat_id=chat_id,
+            message="Automatico",
+        )
 
     return jsonify({'status': 'sucess'}), 200
 
