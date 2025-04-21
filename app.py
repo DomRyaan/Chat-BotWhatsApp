@@ -1,5 +1,12 @@
 from flask import Flask, request, jsonify
+
 import time
+from datetime import datetime
+from pytz import timezone
+
+
+from controls import is_open
+from bot.ai_bot import AIBot
 from services.waha import Waha
 
 app = Flask(__name__)
@@ -9,26 +16,34 @@ def webhook():
     data = request.json
     
     waha = Waha()
+    ai_bot = AIBot()
 
     chat_id = data['payload']['from']
-    mensagem = data['payload']['body']
-    checagem: bool = chat_id.endswith("@c.us")
+    received_message = data['payload']['body']
 
-    print(f"Mensagem: {mensagem} evianda por esse número: {chat_id}")
+    fuso_horario = timezone('America/Sao_Paulo')
+    horario = datetime.now(fuso_horario).hour
 
     """Verificando se a mensagem que recebemos não vem de um grupo"""
-    if checagem:
-        waha.start_typing(chat_id=chat_id)
+    if chat_id.endswith("@c.us"):
+        
+        if is_open(horario):
+            waha.start_typing(chat_id=chat_id)
 
-        time.sleep(4)
+            time.sleep(3)
+            
+            response = ai_bot.invoke(question=received_message)
+            waha.send_message(
+                chat_id=chat_id,
+                message=response,
+                )
 
-        waha.send_message(
-            chat_id=chat_id,
-            message="""Olá! 😊 Seja bem-vindo(a) a GiSalgados. 
-Se precisar de ajuda, tiver dúvidas ou quiser conhecer mais sobre nossos serviços, é só nos chamar.""",
-        )
-
-        waha.stop_typing(chat_id=chat_id)
+            waha.stop_typing(chat_id=chat_id)
+        else:
+             waha.send_message(
+                chat_id=chat_id,
+                message="Desculpe, mas no momento estamos fechados. Nosso horário de funcionamento é das 6h às 11h e das 14h às 18h.",
+            )
 
     return jsonify({'status': 'sucess'}), 200
 
