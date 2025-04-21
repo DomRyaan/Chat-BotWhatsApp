@@ -5,7 +5,6 @@ from datetime import datetime
 from pytz import timezone
 
 
-from controls import is_open
 from bot.ai_bot import AIBot
 from services.waha import Waha
 from controls import BusinessRules
