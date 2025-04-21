@@ -8,6 +8,7 @@ from pytz import timezone
 from controls import is_open
 from bot.ai_bot import AIBot
 from services.waha import Waha
+from controls import BusinessRules
 
 app = Flask(__name__)
 
@@ -17,6 +18,7 @@ def webhook():
     
     waha = Waha()
     ai_bot = AIBot()
+    rules = BusinessRules()
 
     chat_id = data['payload']['from']
     received_message = data['payload']['body']
@@ -27,7 +29,7 @@ def webhook():
     """Verificando se a mensagem que recebemos não vem de um grupo"""
     if chat_id.endswith("@c.us"):
         
-        if is_open(horario):
+        if rules.is_open(horario):
             waha.start_typing(chat_id=chat_id)
 
             time.sleep(3)
