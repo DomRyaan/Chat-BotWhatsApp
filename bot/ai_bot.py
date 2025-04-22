@@ -1,7 +1,6 @@
 import os
 
 from decouple import config
-
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_chroma import Chroma
 from langchain_core.messages import HumanMessage, AIMessage
@@ -9,45 +8,20 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
-from Embedding.CustomEmbenddings import CustomEmbenddings
 
-os.environ['GROQ_API_KEY'] = config('GROQ_API_KEY')
-os.environ['HUGGINGFACEHUB_API_TOKEN'] = config('HUGGINGFACEHUB_API_TOKEN')
+# Constantes de configuração
+PERSIST_DIRECTORY = "/app/chroma_data"
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+CHAT_MODEL = "llama3-70b-8192"
 
-
-class AIBot:
-
-    def __init__(self):
-        self.__chat = ChatGroq(model='llama3-70b-8192')
-        self.__retriever = self.__build_retriever()
-
-    def __build_retriever(self):
-        persist_directory = '/app/chroma_data'
-        embedding = CustomEmbenddings(model="sentence-transformers/all-MiniLM-L6-v2", token=os.environ['HUGGINGFACEHUB_API_TOKEN'])
-
-        vector_store = Chroma(
-            persist_directory=persist_directory,
-            embedding_function=embedding,
-        )
-        return vector_store.as_retriever(
-            search_kwargs={'k': 30},
-        )
-
-    def __build_messages(self, history_messages, question):
-        messages = []
-        for message in history_messages:
-            message_class = HumanMessage if message.get('fromMe') else AIMessage
-            messages.append(message_class(content=message.get('body')))
-        messages.append(HumanMessage(content=question))
-        return messages
-
-    def invoke(self, history_messages, question):
-        SYSTEM_TEMPLATE = '''
+# Template do sistema
+SYSTEM_TEMPLATE = '''
 Você é uma atendente virtual simpática, eficiente e educada de uma Salgaderia chamada Gi Salgados.
 
 Sua função é atender os clientes, anotar pedidos, responder dúvidas sobre o cardápio, horários de funcionamento. 
 
- **Nunca invente pratos, ingredientes, horários, valores ou formas de atendimento que não estejam especificadas.** Se o cliente pedir algo diferente, diga com gentileza que não é possível.
+**Nunca invente pratos, ingredientes, horários, valores ou formas de atendimento que não estejam especificadas.** 
+Se o cliente pedir algo diferente, diga com gentileza que não é possível.
 
 Siga estas diretrizes:
 
@@ -60,31 +34,61 @@ Siga estas diretrizes:
 - Sempre pergunte se o cliente deseja mais alguma coisa antes de encerrar o atendimento.
 - No final, agradeça e deseje um bom dia/tarde.
 - NUNCA diga que fazemos entregas.
-- Responda sempre em portugues brasileiro
+- Responda sempre em português brasileiro.
 
 ---
 
 <context>
 {context}
 </context>
-        
-        '''
+'''
 
-        docs = self.__retriever.invoke(question)
-        question_answering_prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    'system',
-                    SYSTEM_TEMPLATE,
-                ),
-                MessagesPlaceholder(variable_name='messages'),
-            ]
+
+class AIBot:
+    def __init__(self):
+        self.chat_model = ChatGroq(
+            model=CHAT_MODEL,
+            groq_api_key=config("GROQ_API_KEY")
         )
-        document_chain = create_stuff_documents_chain(self.__chat, question_answering_prompt)
-        response = document_chain.invoke(
-            {
-                'context': docs,
-                'messages': self.__build_messages(history_messages, question),
-            }
+        self.retriever = self._create_retriever()
+
+    def _create_retriever(self):
+        embedding_function = HuggingFaceEndpointEmbeddings(
+            model=EMBEDDING_MODEL,
+            huggingfacehub_api_token=config("HUGGINGFACEHUB_API_TOKEN")
         )
+
+        vector_store = Chroma(
+            persist_directory=PERSIST_DIRECTORY,
+            embedding_function=embedding_function,
+        )
+
+        return vector_store.as_retriever(search_kwargs={"k": 30})
+
+    def _format_messages(self, history, user_question):
+        messages = [
+            (HumanMessage if m.get("fromMe") else AIMessage)(content=m.get("body"))
+            for m in history
+        ]
+        messages.append(HumanMessage(content=user_question))
+        return messages
+
+    def invoke(self, history_messages, question):
+        context_docs = self.retriever.invoke(question)
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", SYSTEM_TEMPLATE),
+            MessagesPlaceholder(variable_name="messages"),
+        ])
+
+        document_chain = create_stuff_documents_chain(
+            llm=self.chat_model,
+            prompt=prompt,
+        )
+
+        response = document_chain.invoke({
+            "context": context_docs,
+            "messages": self._format_messages(history_messages, question),
+        })
+
         return response

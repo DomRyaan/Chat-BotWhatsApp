@@ -7,7 +7,6 @@ from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
-from Embedding.CustomEmbenddings import CustomEmbenddings
 
 os.environ['HUGGINGFACEHUB_API_TOKEN'] = config('HUGGINGFACEHUB_API_TOKEN')
 
@@ -26,7 +25,7 @@ if __name__ == '__main__':
 
     persist_directory = "/app/chroma_data"
 
-    embedding = CustomEmbenddings(model="sentence-transformers/all-MiniLM-L6-v2", token=os.environ['HUGGINGFACEHUB_API_TOKEN'])
+    embedding = HuggingFaceEndpointEmbeddings(model="sentence-transformers/all-MiniLM-L6-v2")
     vector_store = Chroma(
         embedding_function=embedding,
         persist_directory=persist_directory,
