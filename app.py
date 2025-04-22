@@ -34,7 +34,7 @@ def webhook():
     horario = datetime.now(fuso_horario).hour
 
     # Verifica se o estabelecimento está fechado
-    if not (rules.is_open(horario)):
+    if not (rules.is_open(8)):
 
         waha.send_message(
         chat_id=chat_id,
@@ -45,13 +45,19 @@ def webhook():
         return jsonify({"status": "success", "message": "Estabelecimento fechado"}), 200
     
     waha.start_typing(chat_id=chat_id)
+    history_messages = waha.get_history_messages(
+        chat_id=chat_id,
+        limit=6,
+    )
 
-    time.sleep(3)
-    
-    response = ai_bot.invoke(question=received_message)
+    response_message = ai_bot.invoke(
+        history_messages=history_messages,
+        question=received_message,
+    )
+
     waha.send_message(
         chat_id=chat_id,
-        message=response,
+        message=response_message,
         )
 
     waha.stop_typing(chat_id=chat_id)
